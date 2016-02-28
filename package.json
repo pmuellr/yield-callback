@@ -1,0 +1,32 @@
+{
+  "name": "yield-callback",
+  "version": "0.1.0",
+  "description": "run async/callback functions in a sync style, with generators",
+  "main": "yield-callback",
+  "license": "MIT",
+  "author": "Patrick Mueller <pmuellr@apache.org> (https://github.com/pmuellr)",
+  "keywords": [
+    "async",
+    "callback"
+  ],
+  "scripts": {
+    "utest": "nsolid test/index.js | tap-spec",
+    "test": "npm run utest && standard",
+    "watch": "nodemon --exec 'npm test' --ext js,json"
+  },
+  "devDependencies": {
+    "bl": "~1.1.2",
+    "nodemon": "~1.8.1",
+    "tape": "~4.4.0",
+    "tap-spec": "~4.1.1",
+    "standard": "~5.4.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pmuellr/yield-callback.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pmuellr/yield-callback/issues"
+  },
+  "homepage": "https://github.com/pmuellr/yield-callback"
+}
