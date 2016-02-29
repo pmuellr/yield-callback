@@ -1,6 +1,6 @@
 {
   "name": "yield-callback",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "run async/callback functions in a sync style, with generators",
   "main": "yield-callback",
   "license": "MIT",
@@ -10,16 +10,17 @@
     "callback"
   ],
   "scripts": {
-    "utest": "nsolid test/index.js | tap-spec",
+    "standard": "standard",
     "test": "npm run utest && standard",
+    "utest": "node --harmony_destructuring test/index.js | tap-spec",
     "watch": "nodemon --exec 'npm test' --ext js,json"
   },
   "devDependencies": {
     "bl": "~1.1.2",
-    "nodemon": "~1.8.1",
-    "tape": "~4.4.0",
+    "nodemon": "~1.9.1",
+    "standard": "~6.0.7",
     "tap-spec": "~4.1.1",
-    "standard": "~5.4.1"
+    "tape": "~4.4.0"
   },
   "repository": {
     "type": "git",

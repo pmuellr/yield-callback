@@ -50,8 +50,9 @@ to the appropriate parameter.
 
     const readFile = yieldCallback.wrap(readFileGen)
 
-    readFile(fileName, function (err, buffer) {
-      ...
+    readFile(__filename, function (err, buffer) {
+      if (err) return console.log(err)
+      console.log(buffer.toString('utf8'))
     })
 
     function * readFileGen (fileName, cb) {
@@ -77,6 +78,32 @@ to the appropriate parameter.
       return buffer
     }
 
+You can also have the callback parameters returned as an array, instead of an
+object, in which case you call the callback passed by the generator with no
+arguments (requires `--harmony_destructuring` for Node 4.x):
+
+    function * readFileGen (fileName, cb) {
+      var [err, fd] = yield fs.open(fileName, 'r', cb())
+      if (err) return err
+
+      var [err, stats] = yield fs.fstat(fd, cb())
+      if (err) return err
+
+      const buffer = new Buffer(stats.size)
+
+      var [err, bytesRead] = yield fs.read(fd, buffer, 0, buffer.length, 0, cb())
+      if (err) return err
+      if (bytesRead !== buffer.length) return new Error('EMOREFILE')
+
+      var [err] = yield fs.close(fd, cb())
+      if (err) return err
+
+      return buffer
+    }
+
+You can see this form lends itself to destructuring the result into local
+variables.  The future will be nice!
+
 
 API
 ================================================================================
@@ -96,24 +123,27 @@ This module exports two functions:
 
 In both cases, the `generatorFunction` is run as follows:
 
-* A 'callback' function is passed in as the final argument to the function,
-  but it's not a typical callback function.  It's a function that you call
-  with the names of the expected callback parameters, in a space-separated
-  string, in the order they are defined in the callback function,
-  in the place where you'd normally call the callback.
+* Async callback functions can be invoked behind a yield, where you pass an
+  invocation of the callback passed to the generator, as the callback parameter
+  of the async function.
+
+* The callback passed to the generator is a function that you call with the
+  names of the expected callback parameters, in a space-separated string, in the
+  order they are defined in the callback function. Or you can pass no arguments
+  and an array of the parameters will be returned.
 
   Eg, for `fs.open()`, the callback passes `err` and `fd`, so you would invoke
   it as:
 
         const result = yield fs.open(fileName, cb('err fd'))
+        var [err, fd] = yield fs.open(fileName, cb())
 
-* Async callback functions can be invoked behind a yield, passing the names
-  of the callback parameters in, instead of a callback function, to the
-  callback function passed to the generator.
 
-* The result of the yield expression will be an object, with properties named
-  as above.  Eg, you can reference the `err` parameter of the callback via
-  `result.err` and the `fd` parameter as `result.fd`.
+* The result of the yield expression will be an object, with properties named as
+  above, or an array of the actual callback parameters.  Eg, for the first
+  `yield`, you can reference the `err` parameter of the callback via
+  `result.err` and the `fd` parameter as `result.fd`. For the second `yield`, an
+  array is returned with the values of `err` and `fd`.
 
 * When the generator returns, it will call the top-level callback with the
   result from the generator, with the following rules:
@@ -133,5 +163,5 @@ In both cases, the `generatorFunction` is run as follows:
   The rule is, if you are using a `(err, data)` node-style callback, and the
   `data` isn't an array, you can return an Error object or non-array data object
   by themselves, and yield-callback will figure out what to do.  If the `data`
-  is or might be an array, you should return `[err, data]` when returning the
-  data object.
+  is or might be an array, you should use the explicit form of returning
+  an array of the callback parameters.

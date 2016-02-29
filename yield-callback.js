@@ -30,12 +30,22 @@ function run (generatorFn) {
   // proceed to first yield
   iter.next()
 
-  // callback function inside the generator, describing return properties
+  // callback function inside the generator, describing return properties as
+  // a string of property names, or an empty array
   function cbSetProperties (vars) {
-    if (vars == null) vars = ''
+    let isArray = false
+    let propNames = []
 
-    // parse vars as space-separated property names
-    vars = `${vars}`.trim().split(/\s+/)
+    // no args same as array
+    if (vars == null) vars = []
+
+    if (Array.isArray(vars)) {
+      // passed array, so wants array as result
+      isArray = true
+    } else {
+      // parse vars as space-separated property names
+      propNames = `${vars}`.trim().split(/\s+/)
+    }
 
     // return the function that sets the result properties from args
     return cbParmSetter
@@ -43,14 +53,21 @@ function run (generatorFn) {
     // the callback function, used in the generator, which will set it's
     // arguments to the properties specified, and return from the yield
     function cbParmSetter () {
-      const result = {}
+      let result
 
-      // assign the callbacks arguments to the properties in the returned object
-      for (let i = 0; i < vars.length; i++) {
-        result[vars[i]] = arguments[i]
+      // assign the callback arguments ...
+      if (isArray) {
+        // to an array
+        result = [].slice.call(arguments)
+      } else {
+        // to the properties of an object
+        result = {}
+        for (let i = 0; i < propNames.length; i++) {
+          result[propNames[i]] = arguments[i]
+        }
       }
 
-      // send returnedObject as result of yield, proceed to next yield
+      // send result as the value of the yield, proceed to next yield
       const next = iter.next(result)
 
       // did the generator return?  If so, call the final callback
