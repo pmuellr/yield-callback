@@ -15,7 +15,7 @@ tapeRunner(function noGeneratorRun (t) {
 
 tapeRunner(function noGeneratorWrap (t) {
   try {
-    yieldCallback.wrap('foo')
+    yieldCallback('foo')
     t.fail('should have thrown an error')
   } catch (err) {
     t.pass('should have thrown an error')
@@ -34,7 +34,7 @@ tapeRunner(function noCbRun (t) {
 })
 
 tapeRunner(function noCbWrap (t) {
-  const wrappedTR = yieldCallback.wrap(tapeRunner)
+  const wrappedTR = yieldCallback(tapeRunner)
 
   try {
     wrappedTR('foo')

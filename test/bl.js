@@ -9,7 +9,7 @@ const tapeRunner = require('./tapeRunner')(__filename)
 
 const FileContents = fs.readFileSync(__filename, 'utf8')
 
-const readFile = yieldCallback.wrap(readFileWithBlGen)
+const readFile = yieldCallback(readFileWithBlGen)
 
 tapeRunner(function test_bl (t) {
   readFile(__filename, (err, buffer) => {
@@ -38,7 +38,7 @@ function * readFileWithBlGen (fileName, cb) {
     return err
   }
 
-  $ = yield rStream.pipe(bl(cb('err buffer')))
+  $ = yield rStream.pipe(bl(cb.props('err buffer')))
   if ($.err) return $.err
 
   return $.buffer

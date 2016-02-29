@@ -7,7 +7,9 @@ const tapeRunner = require('./tapeRunner')(__filename)
 
 const FileContents = fs.readFileSync(__filename, 'utf8')
 
-const readFile = yieldCallback.wrap(readFileGen)
+const readFile = function (fileName, cb) {
+  yieldCallback.run(readFileGen, fileName, cb)
+}
 
 tapeRunner(function testReadFile (t) {
   readFile(__filename, (err, buffer) => {
@@ -28,21 +30,21 @@ tapeRunner(function testNonExistantFile (t) {
 function * readFileGen (fileName, cb) {
   let $
 
-  $ = yield fs.open(fileName, 'r', cb('err fd'))
+  $ = yield fs.open(fileName, 'r', cb.props('err fd'))
   if ($.err) return $.err
 
   const fd = $.fd
 
-  $ = yield fs.fstat(fd, cb('err stats'))
+  $ = yield fs.fstat(fd, cb.props('err stats'))
   if ($.err) return $.err
 
   const buffer = new Buffer($.stats.size)
 
-  $ = yield fs.read(fd, buffer, 0, buffer.length, 0, cb('err bytesRead buffer'))
+  $ = yield fs.read(fd, buffer, 0, buffer.length, 0, cb.props('err bytesRead buffer'))
   if ($.err) return $.err
   if ($.bytesRead !== buffer.length) return new Error('EMOREFILE')
 
-  $ = yield fs.close(fd, cb('err'))
+  $ = yield fs.close(fd, cb.props('err'))
 
   return buffer
 }

@@ -5,11 +5,11 @@ const fs = require('fs')
 const yieldCallback = require('..')
 const tapeRunner = require('./tapeRunner')(__filename)
 
-const readFile = yieldCallback.wrap(readFileGen)
+const readFile = yieldCallback(readFileGen)
 
-tapeRunner(function test_bl (t) {
+tapeRunner(function testReturnError (t) {
   readFile('nope.nope', (err, buffer) => {
-    t.ok(err instanceof Error, 'buffer should be instance of Error')
+    t.ok(err instanceof Error, 'err should be instance of Error')
     t.notok(buffer, 'buffer should be null')
     t.end()
   })
@@ -18,7 +18,7 @@ tapeRunner(function test_bl (t) {
 function * readFileGen (fileName, cb) {
   let $
 
-  $ = yield fs.open(fileName, 'r', cb('err fd'))
+  $ = yield fs.open(fileName, 'r', cb.props('err fd'))
   if ($.err) return $.err
 
   return $.fd

@@ -9,8 +9,10 @@ const tapeRunner = require('./tapeRunner')(__filename)
 
 const FileContents = fs.readFileSync(__filename, 'utf8')
 
+yieldCallback.installPrototype('$')
+
 tapeRunner(function testReadFile (t) {
-  readFile(__filename, (err, buffer) => {
+  readFileGen.$(__filename, (err, buffer) => {
     t.notok(err, 'err should be null')
     t.equal(buffer.toString('utf8'), FileContents, 'buffer should be file contents')
     t.end()
@@ -18,7 +20,7 @@ tapeRunner(function testReadFile (t) {
 })
 
 tapeRunner(function testNonExistantFile (t) {
-  readFile(`${__filename}.nope`, (err, buffer) => {
+  readFileGen.$(`${__filename}.nope`, (err, buffer) => {
     t.ok(err instanceof Error, 'err should be an Error')
     t.notok(buffer, 'buffer should be null')
     t.end()
@@ -42,8 +44,4 @@ function * readFileGen (fileName, cb) {
   if (err) return err
 
   return buffer
-}
-
-function readFile (fileName, cb) {
-  yieldCallback.run(readFileGen, fileName, cb)
 }
