@@ -163,7 +163,7 @@ function * myGenerator(a, b, cb) {
   console.log('waiting(b)', b, 'ms')
   yield setTimeout(cb, b)
 
-  return a + b
+  return [a + b]
 }
 
 const myWrapped = yieldCallback(myGenerator)

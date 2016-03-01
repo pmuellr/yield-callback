@@ -1,6 +1,6 @@
 {
   "name": "yield-callback",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "run async/callback functions in a sync style, with generators",
   "main": "yield-callback",
   "license": "MIT",
