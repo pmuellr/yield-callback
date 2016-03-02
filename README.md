@@ -133,9 +133,7 @@ const fd = $.fd
 install
 ================================================================================
 
-    npm install pmuellr/yield-callback
-    npm install pmuellr/yield-callback#v0.3.0
-    ...
+    npm install yield-callback
 
 
 API
