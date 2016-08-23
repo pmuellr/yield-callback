@@ -1,5 +1,3 @@
-/*eslint-disable no-redeclare */
-
 'use strict'
 
 const fs = require('fs')
@@ -8,6 +6,10 @@ const yieldCallback = require('..')
 const tapeRunner = require('./tapeRunner')(__filename)
 
 const FileContents = fs.readFileSync(__filename, 'utf8')
+
+const readFile = function (fileName, cb) {
+  yieldCallback.run(readFileGen, fileName, cb)
+}
 
 tapeRunner(function testReadFile (t) {
   readFile(__filename, (err, buffer) => {
@@ -26,24 +28,26 @@ tapeRunner(function testNonExistantFile (t) {
 })
 
 function * readFileGen (fileName, cb) {
-  var [err, fd] = yield fs.open(fileName, 'r', cb)
+  let err
+  cb.setError = (anErr) => { err = anErr }
+
+  const fd = yield fs.open(fileName, 'r', cb)
   if (err) return err
 
-  var [err, stats] = yield fs.fstat(fd, cb)
+  const stats = yield fs.fstat(fd, cb)
   if (err) return err
 
   const buffer = new Buffer(stats.size)
 
-  var [err, bytesRead] = yield fs.read(fd, buffer, 0, buffer.length, 0, cb)
+  const bytesReadBuffer = yield fs.read(fd, buffer, 0, buffer.length, 0, cb)
   if (err) return err
+
+  const bytesRead = bytesReadBuffer[0]
+  const bufferRead = bytesReadBuffer[1]
   if (bytesRead !== buffer.length) return new Error('EMOREFILE')
 
-  var [err] = yield fs.close(fd, cb)
+  yield fs.close(fd, cb)
   if (err) return err
 
-  return buffer
-}
-
-function readFile (fileName, cb) {
-  yieldCallback.run(readFileGen, fileName, cb)
+  return bufferRead
 }

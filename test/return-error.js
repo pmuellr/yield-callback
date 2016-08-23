@@ -16,10 +16,8 @@ tapeRunner(function testReturnError (t) {
 })
 
 function * readFileGen (fileName, cb) {
-  let $
+  const fd = yield fs.open(fileName, 'r', cb)
+  if (cb.err) return cb.err
 
-  $ = yield fs.open(fileName, 'r', cb.props('err fd'))
-  if ($.err) return $.err
-
-  return $.fd
+  return fd
 }

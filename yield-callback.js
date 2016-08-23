@@ -4,16 +4,6 @@ module.exports = wrap
 
 wrap.run = run
 wrap.wrap = wrap
-wrap.installPrototype = installPrototype
-
-// installs a new function on Function.prototype, which wraps a generator
-// This is pretty evil, and most likely not really supported, since eslint
-// complains that Function.prototype is not updateable like this ...
-function installPrototype (name) {
-  Function.prototype[name] = function () { // eslint-disable-line no-extend-native
-    return wrap(this).apply(null, arguments)
-  }
-}
 
 // wrap a generator function with yieldCallback
 function wrap (generatorFn) {
@@ -47,52 +37,48 @@ function run (generatorFn) {
     throw Error('expecting final argument to be a callback function')
   }
 
-  let nextResult = null
-  let nextValue = null
-  let isArray = true
-  let propNames = []
-
-  cbParmsToResultAssigner.props = cbAssignPropsToResult
-
   // add the callback return property setter
-  args.push(cbParmsToResultAssigner)
+  cbGen.err = null
+  cbGen.errorResult = (err) => new ErrorResult(err)
+  args.push(cbGen)
 
   // initial call to the generator
   const iter = generatorFn.apply(null, args)
 
   // proceed to first yield
-  nextResult = iter.next()
-  nextValue = nextResult.value
+  iter.next()
 
   // the callback function, used in the generator, which will set it's
   // arguments to the properties specified, and return from the yield
-  function cbParmsToResultAssigner () {
-    let result
+  function cbGen () {
+    let result = [].slice.call(arguments)
 
-    // assign the callback arguments ...
-    if (isArray) {
-      // to an array
-      result = [].slice.call(arguments)
-    } else {
-      // to the properties of an object
-      result = {}
-      for (let i = 0; i < propNames.length; i++) {
-        result[propNames[i]] = arguments[i]
-      }
+    // pull the error off, assign to cb property
+    cbGen.err = result.shift()
+
+    // call onError handler, if there is one
+    if (typeof cbGen.setError === 'function') {
+      cbGen.setError(cbGen.err)
+    }
+
+    // flatten result, if 0 or 1 element
+    if (result.length === 0) {
+      result = null
+    } else if (result.length === 1) {
+      result = result[0]
     }
 
     // send result as the value of the yield, proceed to next yield
-    result._ = nextValue
-    nextResult = iter.next(result)
-    nextValue = nextResult.value
+    let nextResult = iter.next(result)
 
     // did the generator return?  If so, call the final callback
-    // - if they returned returned an array, apply that to the callback
     // - if they returned an error, call callback(err)
     // - otherwise, call callback(null, returnValue)
     if (nextResult.done) {
-      if (Array.isArray(nextValue)) {
-        cbFinal.apply(null, nextValue)
+      let nextValue = nextResult.value
+
+      if (nextValue instanceof ErrorResult) {
+        cbFinal(nextValue.err)
       } else if (nextValue instanceof Error) {
         cbFinal(nextValue)
       } else {
@@ -100,24 +86,8 @@ function run (generatorFn) {
       }
     }
   }
+}
 
-  // callback function inside the generator, describing return properties as
-  // a string of property names, or an empty array
-  function cbAssignPropsToResult (vars) {
-    isArray = false
-
-    // no args same as array
-    if (vars == null) vars = []
-
-    if (Array.isArray(vars)) {
-      // passed array, so wants array as result
-      isArray = true
-    } else {
-      // parse vars as space-separated property names
-      propNames = `${vars}`.trim().split(/\s+/)
-    }
-
-    // return the function that sets the result properties from args
-    return cbParmsToResultAssigner
-  }
+class ErrorResult {
+  constructor (err) { this.err = err }
 }

@@ -28,8 +28,6 @@ tapeRunner(function testNonExistantFile (t) {
 })
 
 function * readFileWithBlGen (fileName, cb) {
-  let $
-
   let rStream
 
   try {
@@ -38,8 +36,8 @@ function * readFileWithBlGen (fileName, cb) {
     return err
   }
 
-  $ = yield rStream.pipe(bl(cb.props('err buffer')))
-  if ($.err) return $.err
+  const buffer = yield rStream.pipe(bl(cb))
+  if (cb.err) return cb.err
 
-  return $.buffer
+  return buffer
 }

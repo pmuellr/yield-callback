@@ -1,23 +1,24 @@
 yield-callback - run async/callback functions in a sync style, with generators
 ================================================================================
 
-Run asynchronous/callback functions in a synchronous style, inside a generator.
+This library makes it easy to write code that makes serial calls to async
+functions that use callbacks in the typical "Node.js" style - eg, `cb(err, data)`.
+Forget the [Callback Hell][] - and write code that looks like it's synchronous,
+but isn't.  Thanks to the magic that is [JavaScript Generators][].
 
+
+
+[Callback Hell]:         http://callbackhell.com/
+[JavaScript Generators]: https://davidwalsh.name/es6-generators
 
 example
 ================================================================================
 
 Say you want to write a function `readFile()` which reads the contents of a file
-using the `fs` module.  Here's how you would do it using a pyramid of doom:
+using the `fs` module.  Here's how you would do it using Node.js's low-level
+`fs` module functions, in a fairly typical pyramid-of-callback-hell-doom:
 
 ```js
-// calling the readFile() function
-readFile(fileName, function (err, buffer) {
-  if (err) console.log(err)
-  else console.log(buffer.toString('utf8'))
-})
-
-// implementation of the readFile() function
 function readFile (fileName, cb) {
   fs.open(fileName, 'r', function (err, fd) {
     if (err) return cb(err)
@@ -27,14 +28,14 @@ function readFile (fileName, cb) {
 
       const buffer = new Buffer(stats.size)
 
-      fs.read(fd, buffer, 0, buffer.length, 0, function (err, bytesRead) {
+      fs.read(fd, buffer, 0, buffer.length, 0, function (err, bytesRead, bufferRead) {
         if (err) return cb(err)
         if (bytesRead !== buffer.length) return cb(new Error('EMOREFILE'))
 
         fs.close(fd, function (err) {
           if (err) return cb(err)
 
-          cb(null, buffer)
+          cb(null, bufferRead)
         })
       })
     })
@@ -42,35 +43,44 @@ function readFile (fileName, cb) {
 }
 ```
 
-With `yield-callback`, you can instead write your `readFile()` function as a
-generator, as below.  Note the generator takes a `cb` parameter at the end,
-but it it works a bit different.  You pass it as the callback for async
-functions, and it arranges to yield the callback parameters.
+With `yield-callback`, you can write it like this instead:
 
 ```js
 function * readFileGen (fileName, cb) {
-  var [err, fd] = yield fs.open(fileName, 'r', cb)
-  if (err) return err
+  const fd = yield fs.open(fileName, 'r', cb)
+  if (cb.err) return cb.err
 
-  var [err, stats] = yield fs.fstat(fd, cb)
-  if (err) return err
+  const stats = yield fs.fstat(fd, cb)
+  if (cb.err) return cb.err
 
   const buffer = new Buffer(stats.size)
 
-  var [err, bytesRead] = yield fs.read(fd, buffer, 0, buffer.length, 0, cb)
-  if (err) return err
+  const bytesReadBuffer = yield fs.read(fd, buffer, 0, buffer.length, 0, cb)
+  if (cb.err) return cb.err
+
+  const bytesRead = bytesReadBuffer[0]
+  const bufferRead = bytesReadBuffer[1]
   if (bytesRead !== buffer.length) return new Error('EMOREFILE')
 
-  var [err] = yield fs.close(fd, cb)
-  if (err) return err
+  yield fs.close(fd, cb)
+  if (cb.err) return cb.err
 
-  return buffer
+  return bufferRead
 }
 ```
 
-You can then invoke the generator as below.  Note that you pass a callback
-function in as the final parameter to `run()`, which will be invoked when
-the generator finally returns.
+Your `readFile()` function will actually be implemented as a generator function.
+Note the generator function takes a `cb` parameter at the end, but it it works
+differently than a typical Node.js callback.  You pass that `cb` parameter as
+the callback for async functions called inside the generator function, used
+within yield expressions, and `cb` arranges to yield the callback 'result'
+argument(s) as the result, and sets the 'error' argument to `cb.err`:
+
+You can then invoke the generator as below.  Note that you pass a "normal"
+callback function in as the final parameter to `run()`, which will be invoked
+when the generator finally returns.  If the generator returns an error, the
+first argument will be that error.  Otherwise, the second argument will be set
+to the return value.  Just like a typical Node.js async callback:
 
 ```js
 yieldCallback.run(readFileGen, fileName, function (err, buffer) {
@@ -79,7 +89,7 @@ yieldCallback.run(readFileGen, fileName, function (err, buffer) {
 })
 ```
 
-Or you can wrap the generator to return a "normal" callback function; in this
+Or you can wrap the generator to return a "typical errback" function; in this
 case, with the same signature and behavior as the pyramid-of-doom `readFile()`
 above:
 
@@ -90,44 +100,6 @@ readFile(fileName, function (err, buffer) {
   if (err) console.log(err)
   else console.log(buffer.toString('utf8'))
 })
-```
-
-Using `yield-callback` in this fashion requires destructuring support to
-destructure the array returned from the `yield` statements into the individual
-callback parameter values.  With Node.js v4, you can use the runtime option
-`--harmony_destructuring` to run with destructuring support.
-
-Of course, you don't need to use array destructuring, you can do it yourself:
-
-```js
-...
-let $, err
-...
-$ = yield fs.open(fileName, 'r', cb)
-err = $[0]
-if (err) return err
-
-const fd = $[1]
-...
-```
-
-That's a bit icky, so there's another way to handle the callback parameters.
-Still slightly icky, but ... *less* icky.
-
-The "callback" parameter passed into the generator, `cb` in this case, also
-has a property `props` which is a function which takes the callback parameter
-names, and arranges to yield an object with those properties.  So you can do
-the following:
-
-```js
-...
-let $
-...
-$ = yield fs.open(fileName, 'r', cb.props('err fd'))
-if ($.err) return $.err
-
-const fd = $.fd
-...
 ```
 
 install
@@ -149,9 +121,9 @@ const yieldCallback = require('yield-callback')
 ```
 
 The returned function takes a callback which will be invoked when the generator
-returns.  The generator itself gets passed a "callback" function as it's
-final parameter, which should be passed as the "callback" function on any
-async calls that you make, as expressions in front of a `yield`:
+returns.  The generator itself gets passed a `cb` argument as it's final
+parameter, which should be passed as the "callback" function on any async calls
+that you make, which you should use as expressions in front of a `yield`:
 
 ```js
 function * myGenerator(a, b, cb) {
@@ -161,24 +133,26 @@ function * myGenerator(a, b, cb) {
   console.log('waiting(b)', b, 'ms')
   yield setTimeout(cb, b)
 
-  return [a + b]
+  return a + b
 }
 
 const myWrapped = yieldCallback(myGenerator)
 
-myWrapped(1000, 2000, function (val) {
+myWrapped(1000, 2000, function (err, val) {
   console.log('should be 3000:', val)
 })
 ```
 
-You can also run a generator directly, via the `run` function available on
-the exported function (eg, `yieldCallback.run()`).
+You can also run a generator directly, via the `run` function available on the
+exported function (eg, `yieldCallback.run()`).
+
+The following are equivalent:
 
 ```js
 yieldCallback.run(generatorFunction, arg1, arg2, ... callback)
 ```
 
-This equivalent to:
+is equivalent to
 
 ```js
 const wrapped = yieldCallback(generatorFunction)
@@ -188,87 +162,74 @@ wrapped(arg1, arg2, ... callback)
 
 ### API within the generator function
 
-The generator function is passed as it's final parameter a special callback
-function.  Typically you'd use this function by itself as an async callback
-function, which is used as a `yield` expression:
+When the generator function is invoked, it's final argument is a special
+callback function to be used with async callback functions called within the
+generator.  This function can be used as the callback function in an async
+callback function, if the function is used in a `yield` expression:
 
 ```js
 function * genFunction(a, b, cb) {
   ...
   yield setTimeout(cb, 1000)
+
+  // code following this comment won't run for 1000 milliseconds
   ...
 }
 ```
 
-The `yield` expression returns a value, which by default will be an array
-of the parameters passed to the callback:
+The `yield` expression returns a value, which is the "result" passed to the
+callback.  The "error" passed to the callback is available as `cb.err`.
 
 ```js
 function * genFunction(fileName, cb) {
-  ...
-  const result = yield fs.readFile(fileName, 'utf8', cb)
-  // result[0] is `err`  from `fs.readFile()`
-  // result[1] is `data` from `fs.readFile()`
-  ...
+  // fs.readFile()'s cb: (err, fileContents)
+  const fileContents = yield fs.readFile(fileName, 'utf8', cb)
+
+  // the `err` argument of the callback is available in `cb.err`
+  if (cb.err) return cb.err
+
+  console.log(fileContents) // print the file contents
 }
 ```
 
-These destructure well:
+If the callback is invoked with a non-null first argument, eg `cb(err)`, the
+result will be `null`, and `cb.err` will be set to that argument.
 
-```js
-function * genFunction(fileName, cb) {
-  ...
-  var [err, data] = yield fs.readFile(fileName, 'utf8', cb)
-  ...
-}
-```
+If the callback is invoked with a single response value, eg `cb(null, 1)`, the
+result will be the single response value, and `cb.err` will be `null`.
 
-You can alternatively send an object as the result, by calling the `props`
-function on the `cb` function, and specifying the properties you want set on
-the object, as a space-separated string:
-
-```js
-function * genFunction(fileName, cb) {
-  ...
-  var {err, data} = yield fs.readFile(fileName, 'utf8', cb.props('err data'))
-  ...
-}
-```
+If the callback is invoked with multiple response values, eg, `cb(null, 1, 2)`,
+the result will be an array of the response values, eg `[1, 2]`, and `cb.err`
+will be `null`.
 
 The value that the generator finally returns will be passed to the original
-callback back passed into the wrapped (or run) function.  You should specify
-the arguments passed to the callback as an array:
+callback back passed into the wrapped (or run) function.  That callback should
+have the signature `cb(err, data)`.
+
+If the generator returns an instance of Error, the callback will be invoked with
+that error as the first parameter.
+
+If the generator return anything else, the callback will be invoked with a null
+error, and that returned object as the second parameter.
+
+In case you're not sure, or know, that the `err` object you want to return from
+a generator **isn't** an instance of Error, you can use the function
+`cb.errorResult()` to wrap your object so that it will be treated as an error
+result, rather than a non-error object passed as the second callback parameter:
+
 
 ```js
 yieldCallback.run(genFunction, aFileName, function outerCB (err, data) {})
 
 function * genFunction(fileName, cb) {
-  var [err, data] = yield fs.readFile(fileName, 'utf8', cb)
-  return [err, data]  // calls outerCB(err, data)
-}
-```
+  const data = yield fs.readFile(fileName, 'utf8', cb)
 
-As a short-cut, you can return an instance of `Error`, and that value will be
-passed directly to the callback:
+  if (cb.err) return cb.err                  // calls outerCB(err)
 
-```js
-function * genFunction(fileName, cb) {
-  ...
-  var {err, data} = yield fs.readFile(fileName, 'utf8', cb.props('err data'))
-  if (err) return err  // calls outerCB(err)
-  return [null, data]  // calls outerCB(null, data)
-}
-```
+  if (cb.err) return cb.errorResult(cb.err)  // also calls outerCB(err),
+                                             // even if `cb.err` isn't an
+                                             // instance of Error
 
-As a final short-cut, you can return an object which isn't an array or Error
-instance, and that value will be passed as the second argument to the callback,
-with null passed as the first argument:
-
-```js
-function * genFunction(fileName, cb) {
-  ...
-  var [err, data] = yield fs.readFile(fileName, 'utf8', cb)
-  if (err) return err  // calls outerCB(err)
-  return data          // calls outerCB(null, data)
+  return data                                // calls outerCB(null, data)
 }
 ```

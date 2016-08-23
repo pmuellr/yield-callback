@@ -28,23 +28,23 @@ tapeRunner(function testNonExistantFile (t) {
 })
 
 function * readFileGen (fileName, cb) {
-  let $
+  const fd = yield fs.open(fileName, 'r', cb)
+  if (cb.err) return cb.err
 
-  $ = yield fs.open(fileName, 'r', cb.props('err fd'))
-  if ($.err) return $.err
+  const stats = yield fs.fstat(fd, cb)
+  if (cb.err) return cb.err
 
-  const fd = $.fd
+  const buffer = new Buffer(stats.size)
 
-  $ = yield fs.fstat(fd, cb.props('err stats'))
-  if ($.err) return $.err
+  const bytesReadBuffer = yield fs.read(fd, buffer, 0, buffer.length, 0, cb)
+  if (cb.err) return cb.err
 
-  const buffer = new Buffer($.stats.size)
+  const bytesRead = bytesReadBuffer[0]
+  const bufferRead = bytesReadBuffer[1]
+  if (bytesRead !== buffer.length) return new Error('EMOREFILE')
 
-  $ = yield fs.read(fd, buffer, 0, buffer.length, 0, cb.props('err bytesRead buffer'))
-  if ($.err) return $.err
-  if ($.bytesRead !== buffer.length) return new Error('EMOREFILE')
+  yield fs.close(fd, cb)
+  if (cb.err) return cb.err
 
-  $ = yield fs.close(fd, cb.props('err'))
-
-  return buffer
+  return bufferRead
 }
