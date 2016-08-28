@@ -32,7 +32,7 @@ function run (generatorFn) {
   args.shift()
 
   // get the final arg, which is the final callback
-  const cbFinal = args.pop()
+  const cbFinal = onlyCallOnce(args.pop())
   if (typeof cbFinal !== 'function') {
     throw Error('expecting final argument to be a callback function')
   }
@@ -44,6 +44,13 @@ function run (generatorFn) {
 
   // initial call to the generator
   const iter = generatorFn.apply(null, args)
+
+  // make sure it was a generator
+  const notGenMessage = 'initial argument was a function but not a generator'
+  if (iter == null) return cbFinal(new Error(notGenMessage))
+  if (typeof iter.next !== 'function') return cbFinal(new Error(notGenMessage))
+  if (typeof iter.return !== 'function') return cbFinal(new Error(notGenMessage))
+  if (typeof iter.throw !== 'function') return cbFinal(new Error(notGenMessage))
 
   // proceed to first yield
   iter.next()
@@ -69,7 +76,13 @@ function run (generatorFn) {
     }
 
     // send result as the value of the yield, proceed to next yield
-    let nextResult = iter.next(result)
+    let nextResult
+    nextResult = iter.next(result)
+//    try {
+//      nextResult = iter.next(result)
+//    } catch (err) {
+//      if (err) return cbFinal(err)
+//    }
 
     // did the generator return?  If so, call the final callback
     // - if they returned an error, call callback(err)
@@ -88,6 +101,21 @@ function run (generatorFn) {
   }
 }
 
+// class to wrap objects as an explicit error
 class ErrorResult {
   constructor (err) { this.err = err }
+}
+
+// return a version of a function which will only be called once
+function onlyCallOnce (fn) {
+  if (typeof fn !== 'function') return fn
+
+  let called = false
+
+  return function onlyCalledOnce () {
+    if (called) return
+    called = true
+
+    return fn.apply(null, arguments)
+  }
 }
